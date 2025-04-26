@@ -7,10 +7,10 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # LUKS configuration with UUID from /dev/nvme0n1p2
-  boot.initrd.luks.devices."enc".device = "/dev/disk/by-uuid/0ea6229d-a3c2-47b1-893d-6742778c7e2c";
+  # LUKS encryption with UUID from /dev/nvme0n1p2
+  boot.initrd.luks.devices."enc".device = "/dev/disk/by-uuid/0ea6229d-a3c2-47b6-893d-6742778c7e2c";
 
-  # Filesystem configuration with BTRFS UUID from /dev/mapper/enc
+  # Filesystem configuration with BTRFS subvolumes
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/a1e79691-c57b-4509-ae9a-71149e1dd9ff";
     fsType = "btrfs";
@@ -49,8 +49,7 @@
   # Networking configuration
   networking.hostName = "nixos";
   networking.wireless.enable = true;
-  # Add your WiFi network here by uncommenting and filling in the details
-  networking.wireless.networks."BROWNJESUS-AIRFIBER".psk = "Bubu9433";
+  # networking.wireless.networks."your_SSID".psk = "your_password";  # Uncomment and set your WiFi details
 
   # Timezone
   time.timeZone = "Asia/Kolkata";
@@ -59,22 +58,27 @@
   users.users.brownjeesus = {
     isNormalUser = true;
     extraGroups = [ "wheel" "networkmanager" ];
-    initialPassword = "Bubu9433@#!!"; # Note: Change this password after initial login for security
+    initialPassword = "Bubu9433@#!!";  # Change this after installation for security
   };
 
-  # Hyprland desktop environment with SDDM and auto-login
+  # XServer and Display Manager
   services.xserver.enable = true;
   services.xserver.displayManager.sddm.enable = true;
   services.xserver.displayManager.defaultSession = "hyprland";
-  services.xserver.displayManager.sddm.autoLogin.enable = true;
-  services.xserver.displayManager.sddm.autoLogin.user = "brownjeesus";
+  services.xserver.displayManager.autoLogin.enable = true;
+  services.xserver.displayManager.autoLogin.user = "brownjeesus";
+
+  # Hyprland configuration
   programs.hyprland.enable = true;
   programs.hyprland.xwayland.enable = true;
 
-  # Packages and unfree software
+  # Packages
   nixpkgs.config.allowUnfree = true;
-  environment.systemPackages = with pkgs; [ google-chrome ];
+  environment.systemPackages = with pkgs; [
+    google-chrome
+    kitty
+  ];
 
-  # System state version
-  system.stateVersion = "23.11"; # Adjust if using a different NixOS version
+  # System version
+  system.stateVersion = "24.11";
 }
