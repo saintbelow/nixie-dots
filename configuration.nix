@@ -1,83 +1,60 @@
-{ config, pkgs, ... }:
-
 {
   imports = [ ./hardware-configuration.nix ];
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
-
+  # Boot configuration
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.initrd.luks.devices."cryptroot" = {
+    device = "/dev/nvme0n1p2";
+    allowDiscards = true; # Optional: Improves SSD performance
+  };
 
-  boot.initrd.luks.devices."cryptroot".device = "/dev/nvme0n1p2";
-
-  networking.hostName = "brownnix";
-  networking.networkmanager.enable = true;
-
-  time.timeZone = "Asia/Kolkata";
-  i18n.defaultLocale = "en_US.UTF-8";
-
+  # Filesystems
   fileSystems."/" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@" "compress=zstd" "noatime" ];
+    options = [ "subvol=root" "compress=zstd" "noatime" ];
   };
-
   fileSystems."/home" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@home" "compress=zstd" "noatime" ];
+    options = [ "subvol=home" "compress=zstd" "noatime" ];
   };
-
   fileSystems."/var/log" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@log" "compress=zstd" "noatime" ];
+    options = [ "subvol=log" "compress=zstd" "noatime" ];
   };
-
-  fileSystems."/nix" = {
-    device = "/dev/mapper/cryptroot";
-    fsType = "btrfs";
-    options = [ "subvol=@nix" "compress=zstd" "noatime" ];
-  };
-
   fileSystems."/persist" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = [ "subvol=@persist" "compress=zstd" "noatime" ];
+    options = [ "subvol=persist" "compress=zstd" "noatime" ];
   };
-
+  fileSystems."/etc/nixos" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=nixos" "compress=zstd" "noatime" ];
+  };
+  fileSystems."/nix" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=nix" "compress=zstd" "noatime" ];
+  };
   fileSystems."/boot" = {
     device = "/dev/nvme0n1p1";
     fsType = "vfat";
   };
 
-  services.xserver.enable = true;
-  services.xserver.displayManager.sddm.enable = true;
-  services.xserver.windowManager.hyprland.enable = true;
-
-  programs.hyprland.enable = true;
-
-  environment.systemPackages = with pkgs; [
-    kitty
-    google-chrome
-    vscode
-    eww
-    git
-    curl
-    wget
-    zsh
+  # Swap
+  swapDevices = [
+    { device = "/swap/swapfile"; }
   ];
 
-  programs.zsh.enable = true;
+  # Enable networking
+  networking.hostName = "nixos";
+  networking.networkmanager.enable = true;
 
-  users.users.brownjeesus = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" ];
-    initialPassword = "Bubu9433@#!!";
-    shell = pkgs.zsh;
-  };
-
-  security.sudo.wheelNeedsPassword = false;
-
-  system.stateVersion = "24.05";
+  # Btrfs and system settings
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  system.stateVersion = "24.11"; # Adjust based on your NixOS version
 }
