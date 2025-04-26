@@ -6,7 +6,7 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.initrd.luks.devices."cryptroot" = {
     device = "/dev/nvme0n1p2";
-    allowDiscards = true; # Optional: Improves SSD performance
+    allowDiscards = true; # Improves SSD performance
   };
 
   # Filesystems
@@ -50,9 +50,40 @@
     { device = "/swap/swapfile"; }
   ];
 
-  # Enable networking
+  # Networking
   networking.hostName = "nixos";
   networking.networkmanager.enable = true;
+
+  # Desktop Environment: Hyprland
+  programs.hyprland = {
+    enable = true;
+    xwayland.enable = true; # For compatibility with X11 apps
+  };
+
+  # Display Manager
+  services.displayManager = {
+    defaultSession = "hyprland";
+    gdm = {
+      enable = true;
+      wayland = true;
+    };
+  };
+
+  # System Packages
+  environment.systemPackages = with pkgs; [
+    kitty # Terminal emulator
+    eww # Wayland widgets
+    google-chrome # Web browser
+    thunar # File manager
+    vscode # Code editor
+  ];
+
+  # Enable XDG portal for Wayland
+  xdg.portal = {
+    enable = true;
+    wlr.enable = true;
+    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  };
 
   # Btrfs and system settings
   boot.kernelPackages = pkgs.linuxPackages_latest;
