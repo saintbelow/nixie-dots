@@ -1,129 +1,56 @@
+
 { config, pkgs, ... }:
 
 {
   imports = [ ./hardware-configuration.nix ];
 
-  # Boot Configuration
-  boot = {
-    loader = {
-      systemd-boot.enable = true;
-      efi.canTouchEfiVariables = true;
-    };
-
-    initrd.luks.devices."cryptroot" = {
+  # LUKS
+  boot.initrd.luks.devices = {
+    cryptroot = {
       device = "/dev/nvme0n1p2";
-      allowDiscards = true; # Improves SSD performance on NVMe
+      preLVM = false;
     };
-
-    kernelPackages = pkgs.linuxPackages_latest; # Always latest stable kernel
   };
 
   # Filesystems
-  fileSystems = {
-    "/" = {
-      device = "/dev/mapper/cryptroot";
-      fsType = "btrfs";
-      options = [ "subvol=root" "compress=zstd" "noatime" ];
-    };
-    "/home" = {
-      device = "/dev/mapper/cryptroot";
-      fsType = "btrfs";
-      options = [ "subvol=home" "compress=zstd" "noatime" ];
-    };
-    "/var/log" = {
-      device = "/dev/mapper/cryptroot";
-      fsType = "btrfs";
-      options = [ "subvol=log" "compress=zstd" "noatime" ];
-    };
-    "/persist" = {
-      device = "/dev/mapper/cryptroot";
-      fsType = "btrfs";
-      options = [ "subvol=persist" "compress=zstd" "noatime" ];
-    };
-    "/etc/nixos" = {
-      device = "/dev/mapper/cryptroot";
-      fsType = "btrfs";
-      options = [ "subvol=nixos" "compress=zstd" "noatime" ];
-    };
-    "/nix" = {
-      device = "/dev/mapper/cryptroot";
-      fsType = "btrfs";
-      options = [ "subvol=nix" "compress=zstd" "noatime" ];
-    };
-    "/boot" = {
-      device = "/dev/nvme0n1p1";
-      fsType = "vfat";
-    };
+  fileSystems."/" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=root" "compress=zstd" ];
   };
 
-  # Swap File
-  swapDevices = [
-    { device = "/swap/swapfile"; }
-  ];
-
-  # Networking
-  networking = {
-    hostName = "nixos"; # Set your hostname
-    networkmanager.enable = true; # Easy WiFi/Ethernet handling
+  fileSystems."/home" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=home" "compress=zstd" ];
   };
 
-  # Hyprland (Wayland compositor)
-  programs.hyprland = {
-    enable = true;
-    xwayland.enable = true; # X11 app support
+  fileSystems."/nix" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=nix" "compress=zstd" ];
   };
 
-  # Display Manager
-  services.displayManager = {
-    defaultSession = "hyprland";
-    gdm = {
-      enable = true;
-      wayland = true;
-    };
+  fileSystems."/snapshots" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = [ "subvol=snapshots" "compress=zstd" ];
   };
 
-  # Packages to Install
-  environment.systemPackages = with pkgs; [
-    kitty            # Terminal emulator
-    eww              # Wayland widgets
-    google-chrome    # Web browser
-    thunar           # File manager
-    vscode           # Code editor
-  ];
-
-  # XDG Portal (For native Wayland app support)
-  xdg.portal = {
-    enable = true;
-    wlr.enable = true;
-    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+  fileSystems."/boot" = {
+    device = "/dev/nvme0n1p1";
+    fsType = "vfat";
   };
 
-  # Locale (Highly recommended defaults)
-  i18n.defaultLocale = "en_US.UTF-8";
+  # Swap
+  swapDevices = [ { device = "/swapfile"; } ];
 
-  time.timeZone = "Asia/Kolkata"; # Change to your timezone
-
-  # Sound (Pulseaudio / Pipewire)
-  sound.enable = true;
-  hardware.pulseaudio.enable = false;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-    jack.enable = true;
-  };
-
-  # Users (optional, but pro move for better control)
-  users.users.yourusername = {
+  # Rest of your config (users, networking, etc.)
+  users.users.brownjeesus = {
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "video" "audio" ]; # Sudo and important groups
-    shell = pkgs.zsh; # Or bash, fish, whatever you love
+    extraGroups = [ "wheel" "networkmanager" ];
+    initialPassword = "changeme";
   };
 
-  # Allow unfree packages (important for Chrome and stuff)
-  nixpkgs.config.allowUnfree = true;
-
-  # State Version
-  system.stateVersion = "24.05"; # Adjust based on your NixOS version
+  system.stateVersion = "24.11";
 }
