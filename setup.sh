@@ -1,81 +1,97 @@
-#!/bin/bash
-set -e  # Exit immediately if any command fails
+#!/usr/bin/env bash
 
-# Define disk and partition details
+set -euo pipefail
+
 DISK="/dev/nvme0n1"
-EFI_PARTITION="${DISK}p1"
-ROOT_PARTITION="${DISK}p2"
 CRYPT_NAME="cryptroot"
-VG_NAME="nixos-vg"
-LV_NAME="nixos-lv"
-BTRFS_OPT="rw,noatime,discard=async,compress-force=zstd,space_cache=v2,commit=120"
-SWAP_SIZE="8G"
-SWAPFILE="/mnt/swapfile"
+EFI_PART="${DISK}p1"
+ROOT_PART="${DISK}p2"
 
-# Wipe the disk
-echo "Wiping the disk..."
-sudo wipefs -a "$DISK"
+log() {
+  echo -e "\033[1;32m[SaintBelow Setup]\033[0m $1"
+}
 
-# Create GPT partition table and partitions
-echo "Creating GPT partition table and partitions..."
-sudo parted --script "$DISK" mklabel gpt
-sudo parted --script "$DISK" mkpart ESP fat32 1MiB 1GiB
-sudo parted --script "$DISK" set 1 boot on
-sudo parted --script "$DISK" mkpart primary 1GiB 100%
+error_exit() {
+  echo -e "\033[1;31m[ERROR]\033[0m $1"
+  exit 1
+}
 
-# Format the EFI partition
-echo "Formatting EFI partition..."
-sudo mkfs.vfat -n EFI "$EFI_PARTITION"
+require_root() {
+  [[ $EUID -ne 0 ]] && error_exit "This script must be run as root"
+}
 
-# Encrypt the root partition with LUKS2
-echo "Encrypting root partition with LUKS2..."
-sudo cryptsetup luksFormat --type=luks2 "$ROOT_PARTITION"
-sudo cryptsetup open "$ROOT_PARTITION" "$CRYPT_NAME"
+partition_disk() {
+  log "Wiping and partitioning $DISK..."
+  wipefs -a "$DISK"
+  sgdisk -Zo "$DISK"
 
-# Set up LVM
-echo "Setting up LVM..."
-sudo vgcreate "$VG_NAME" "/dev/mapper/$CRYPT_NAME"
-sudo lvcreate --name "$LV_NAME" -l +100%FREE "$VG_NAME"
+  parted "$DISK" -- mklabel gpt
+  parted "$DISK" -- mkpart ESP fat32 1MiB 551MiB
+  parted "$DISK" -- set 1 esp on
+  parted "$DISK" -- mkpart primary 551MiB 100%
+}
 
-# Format the logical volume with BTRFS
-echo "Creating BTRFS filesystem..."
-sudo mkfs.btrfs -L NixOS "/dev/mapper/$VG_NAME-$LV_NAME"
+encrypt_root() {
+  log "Encrypting root partition with LUKS2..."
+  cryptsetup luksFormat --type luks2 "$ROOT_PART"
+  cryptsetup open "$ROOT_PART" "$CRYPT_NAME"
+}
 
-# Mount the root partition and create BTRFS subvolumes
-echo "Mounting the root partition and creating subvolumes..."
-sudo mount -o $BTRFS_OPT "/dev/mapper/$VG_NAME-$LV_NAME" /mnt
-sudo btrfs subvolume create /mnt/@
-sudo btrfs subvolume create /mnt/@home
-sudo btrfs subvolume create /mnt/@snapshots
-sudo btrfs subvolume create /mnt/@nix
-sudo btrfs subvolume create /mnt/@nixos-config
-sudo btrfs subvolume create /mnt/@log
-sudo umount /mnt
+format_filesystems() {
+  log "Formatting filesystems..."
+  mkfs.vfat -n EFI "$EFI_PART"
+  mkfs.btrfs -L NIXROOT "/dev/mapper/$CRYPT_NAME"
+}
 
-# Mount subvolumes with specific options
-echo "Mounting subvolumes..."
-sudo mount -o $BTRFS_OPT,subvol=@ "/dev/mapper/$VG_NAME-$LV_NAME" /mnt
-sudo mkdir -p /mnt/{home,nix,etc/nixos,var/log,boot,snapshots}
-sudo mount -o $BTRFS_OPT,subvol=@home "/dev/mapper/$VG_NAME-$LV_NAME" /mnt/home
-sudo mount -o $BTRFS_OPT,subvol=@nix "/dev/mapper/$VG_NAME-$LV_NAME" /mnt/nix
-sudo mount -o $BTRFS_OPT,subvol=@nixos-config "/dev/mapper/$VG_NAME-$LV_NAME" /mnt/etc/nixos
-sudo mount -o $BTRFS_OPT,subvol=@log "/dev/mapper/$VG_NAME-$LV_NAME" /mnt/var/log
-sudo mount -o $BTRFS_OPT,subvol=@snapshots "/dev/mapper/$VG_NAME-$LV_NAME" /mnt/snapshots
+create_subvolumes() {
+  log "Creating Btrfs subvolumes..."
+  mount "/dev/mapper/$CRYPT_NAME" /mnt
+  btrfs subvolume create /mnt/@
+  btrfs subvolume create /mnt/@home
+  btrfs subvolume create /mnt/@nix
+  btrfs subvolume create /mnt/@persist
+  umount /mnt
+}
 
-# Mount the EFI partition
-echo "Mounting EFI partition..."
-sudo mount -o rw,noatime "$EFI_PARTITION" /mnt/boot
+mount_layout() {
+  log "Mounting layout with subvolumes..."
+  mount -o compress=zstd,subvol=@ "/dev/mapper/$CRYPT_NAME" /mnt
 
-# Set up swapfile
-echo "Setting up swapfile..."
-sudo truncate -s 0 "$SWAPFILE"
-sudo chattr +C "$SWAPFILE"
-sudo fallocate -l "$SWAP_SIZE" "$SWAPFILE"
-sudo chmod 0600 "$SWAPFILE"
-sudo mkswap "$SWAPFILE"
-sudo swapon "$SWAPFILE"
+  mkdir -p /mnt/{boot,home,nix,persist}
+  mount -o compress=zstd,subvol=@home "/dev/mapper/$CRYPT_NAME" /mnt/home
+  mount -o compress=zstd,subvol=@nix "/dev/mapper/$CRYPT_NAME" /mnt/nix
+  mount -o compress=zstd,subvol=@persist "/dev/mapper/$CRYPT_NAME" /mnt/persist
+  mount "$EFI_PART" /mnt/boot
+}
 
-echo "Disk setup complete!"
+enable_flakes() {
+  log "Enabling Flakes..."
+  mkdir -p /mnt/etc/nix
+  echo "experimental-features = nix-command flakes" > /mnt/etc/nix/nix.conf
+}
 
-# You can now run nixos-install
-echo "Run nixos-install after this setup to complete installation."
+generate_hw_config() {
+  log "Generating hardware configuration..."
+  nixos-generate-config --root /mnt
+}
+
+finalize() {
+  log "Done! Disk is ready. Now clone your flake config into /mnt/etc/nixos and run:"
+  echo
+  echo "    nixos-install --flake /mnt/etc/nixos#your-hostname"
+  echo
+}
+
+main() {
+  require_root
+  partition_disk
+  encrypt_root
+  format_filesystems
+  create_subvolumes
+  mount_layout
+  enable_flakes
+  generate_hw_config
+  finalize
+}
+
+main "$@"
