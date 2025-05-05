@@ -8,7 +8,7 @@ DRIVE="/dev/nvme0n1"
 EFI_PART="${DRIVE}p1"
 LINUX_PART="${DRIVE}p2"
 CRYPT_NAME="cryptroot"
-MOUNT_OPTS="space_cache=v2,ssd,compress=zstd,noatime"
+MOUNT_OPTS="ssd,compress=zstd,noatime"
 
 echo "Starting setup for ${DRIVE}, bhai. Let’s make this SSD fly! 🔥"
 
@@ -61,9 +61,9 @@ echo "Subvolumes created: @, @home, @snapshots, @nix, @nixos-config, @log."
 # Step 7: Mount subvolumes with SSD optimizations
 echo "Mounting subvolumes with ${MOUNT_OPTS}..."
 mount -o subvol=@,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt
-mkdir -p /mnt/{home,nix/var/nix/gcroots/impermanence/snapshots,etc/nixos,var/log,boot}
+mkdir -p /mnt/{home,snapshots,etc/nixos,var/log,boot}
 mount -o subvol=@home,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/home
-mount -o subvol=@snapshots,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/nix/var/nix/gcroots/impermanence/snapshots
+mount -o subvol=@snapshots,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/snapshots
 mount -o subvol=@nix,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/nix
 mount -o subvol=@nixos-config,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/etc/nixos
 mount -o subvol=@log,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/var/log
