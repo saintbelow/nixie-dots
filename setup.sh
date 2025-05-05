@@ -14,11 +14,8 @@ echo "Starting setup for ${DRIVE}, bhai. Let’s make this SSD fly! 🔥"
 
 # Step 1: Clean the drive (delete partitions and encryption)
 echo "Wiping ${DRIVE} clean..."
-# Unmount anything on the drive if mounted
 umount ${DRIVE}* 2>/dev/null || true
-# Close any open LUKS containers
 cryptsetup luksClose ${CRYPT_NAME} 2>/dev/null || true
-# Wipe partition table
 parted ${DRIVE} --script -- mklabel gpt
 echo "Drive cleaned, bhai. All partitions and encryption gone!"
 
@@ -41,7 +38,7 @@ echo "Opening encrypted partition..."
 cryptsetup luksOpen ${LINUX_PART} ${CRYPT_NAME}
 echo "LUKS2 encryption set up, bhai. Passphrase locked in!"
 
-# Step 5: Format with BTRFS (no LVM, direct on encrypted partition)
+# Step 5: Format with BTRFS
 echo "Formatting /dev/mapper/${CRYPT_NAME} with BTRFS..."
 mkfs.btrfs /dev/mapper/${CRYPT_NAME}
 echo "BTRFS formatted, ready for subvolumes."
@@ -58,10 +55,12 @@ btrfs subvolume create /mnt/@log
 umount /mnt
 echo "Subvolumes created: @, @home, @snapshots, @nix, @nixos-config, @log."
 
-# Step 7: Mount subvolumes with SSD optimizations
+# Step 7: Mount subvolumes
 echo "Mounting subvolumes with ${MOUNT_OPTS}..."
 mount -o subvol=@,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt
-mkdir -p /mnt/{home,snapshots,etc/nixos,var/log,boot}
+
+mkdir -p /mnt/{home,snapshots,nix,etc/nixos,var/log,boot}
+
 mount -o subvol=@home,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/home
 mount -o subvol=@snapshots,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/snapshots
 mount -o subvol=@nix,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/nix
@@ -69,7 +68,7 @@ mount -o subvol=@nixos-config,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/etc/n
 mount -o subvol=@log,${MOUNT_OPTS} /dev/mapper/${CRYPT_NAME} /mnt/var/log
 echo "Subvolumes mounted with SSD speed boosts, bhai!"
 
-# Step 8: Create and configure 8GB swap file
+# Step 8: Create swap file
 echo "Creating 8GB swap file in root subvolume..."
 fallocate -l 8G /mnt/swapfile
 chmod 600 /mnt/swapfile
@@ -84,8 +83,18 @@ echo "EFI partition mounted at /mnt/boot."
 echo "Setup complete, bhai! Drive is clean, encrypted, and optimized. 🚀"
 
 # Final instructions
-echo "Next steps:"
-echo "1. Clone Donovan Glover’s nix-config: git clone https://github.com/donovanglover/nix-config /mnt/etc/nixos/nix-config"
-echo "2. Cd into it: cd /mnt/etc/nixos/nix-config"
-echo "3. Install NixOS: nixos-install --flake .#nixos"
-echo "4. Reboot and vibe with Hyprland, cuh! 😎"
+cat <<EOF
+
+Next steps:
+1. Clone Donovan Glover’s nix-config:
+   git clone https://github.com/donovanglover/nix-config /mnt/etc/nixos/nix-config
+
+2. Change into the config directory:
+   cd /mnt/etc/nixos/nix-config
+
+3. Install NixOS using the flake:
+   nixos-install --flake .#nixos
+
+4. Reboot and vibe with Hyprland, cuh! 😎
+
+EOF
