@@ -1,88 +1,64 @@
-{ config, lib, pkgs, ... }:
 
-{
-  imports = [ ./hardware-configuration.nix ];
+{ config, pkgs, ... }:
 
-  # Bootloader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  boot.loader.efi.efiSysMountPoint = "/boot";
-
-  # LUKS2
-  boot.initrd.luks.devices = {
-    cryptroot = {
-      device = "/dev/nvme0n1p2";
-      allowDiscards = true;
-      preLVM = true;
-    };
-  };
-
-  # Filesystems
-  fileSystems."/" = {
-    device = lib.mkForce "/dev/mapper/nixos-vg-nixos-lv";  # Fix conflict
-    fsType = "btrfs";
-    options = [ "subvol=@" "rw" "noatime" "discard=async" "compress-force=zstd" "space_cache=v2" "commit=120" ];
-  };
-
-  fileSystems."/home" = {
-    device = "/dev/mapper/nixos-vg-nixos-lv";
-    fsType = "btrfs";
-    options = [ "subvol=@home" "rw" "noatime" "discard=async" "compress-force=zstd" "space_cache=v2" "commit=120" ];
-  };
-
-  fileSystems."/nix" = {
-    device = "/dev/mapper/nixos-vg-nixos-lv";
-    fsType = "btrfs";
-    options = [ "subvol=@nix" "rw" "noatime" "discard=async" "compress-force=zstd" "space_cache=v2" "commit=120" ];
-  };
-
-  fileSystems."/etc/nixos" = {
-    device = "/dev/mapper/nixos-vg-nixos-lv";
-    fsType = "btrfs";
-    options = [ "subvol=@nixos-config" "rw" "noatime" "discard=async" "compress-force=zstd" "space_cache=v2" "commit=120" ];
-  };
-
-  fileSystems."/var/log" = {
-    device = "/dev/mapper/nixos-vg-nixos-lv";
-    fsType = "btrfs";
-    options = [ "subvol=@log" "rw" "noatime" "discard=async" "compress-force=zstd" "space_cache=v2" "commit=120" ];
-  };
-
-  fileSystems."/snapshots" = {
-    device = "/dev/mapper/nixos-vg-nixos-lv";
-    fsType = "btrfs";
-    options = [ "subvol=@snapshots" "rw" "noatime" "discard=async" "compress-force=zstd" "space_cache=v2" "commit=120" ];
-  };
-
-  fileSystems."/boot" = {
-    device = "/dev/nvme0n1p1";
-    fsType = "vfat";
-    options = [ "rw" "noatime" ];
-  };
-
-  # Swap
-  swapDevices = [ { device = "/swapfile"; } ];
-
-  # Networking
-  networking.hostName = "nixos-beast";
-  networking.networkmanager.enable = true;
-
-  # Users
-  users.users.brownjeesus = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" ];
-    initialPassword = "changeme";
-  };
-
-  # Basic CLI Packages
-  environment.systemPackages = with pkgs; [
-    vim git htop btop tmux cmatrix mpv wget curl neofetch
+let
+  home-manager = builtins.fetchTarball "https://github.com/nix-community/home-manager/archive/release-25.05.tar.gz";
+in {
+  imports = [
+    ./hardware-configuration.nix
+    (import "${home-manager}/nixos")
   ];
 
-  # Services
-  services.openssh.enable = true;
-  services.xserver.enable = false;  # No GUI
+  networking.hostName = "saintbelow";
 
-  # System Version
-  system.stateVersion = "24.11";
+  users.users.saintbelow = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" ];
+    hashedPassword = "replace_with_your_hashed_password";
+  };
+
+  programs.hyprland.enable = true;
+
+  services.displayManager.ly.enable = true;
+
+  hardware.opengl = {
+    enable = true;
+    extraPackages = [ pkgs.intel-media-driver ];
+  };
+
+  services.tlp.enable = true;
+
+  boot.initrd.kernelModules = [ "i915" ];
+
+  swapDevices = [ { device = "/swapfile"; } ];
+
+  home-manager.users.saintbelow = { pkgs, ... }: {
+    wayland.windowManager.hyprland = {
+      enable = true;
+      settings = {
+        "$mod" = "SUPER";
+        "$terminal" = "kitty";
+        "$menu" = "rofi -show drun";
+
+        bind = [
+          "$mod, Return, exec, $terminal"
+          "$mod, D, exec, $menu"
+          "$mod, Q, killactive"
+        ] ++ (
+          builtins.concatLists (builtins.genList (i:
+            let ws = toString (i + 1);
+            in [
+              "$mod, ${ws}, workspace, ${ws}"
+              "$mod SHIFT, ${ws}, movetoworkspace, ${ws}"
+            ]
+          ) 9)
+        );
+      };
+    };
+
+    home.packages = with pkgs; [
+      kitty
+      rofi
+    ];
+  };
 }
