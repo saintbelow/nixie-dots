@@ -10,11 +10,11 @@ in {
   ];
 
   networking.hostName = "saintbelow";
+  networking.networkmanager.enable = true;
 
   users.users.saintbelow = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    hashedPassword = "replace_with_your_hashed_password";
+    extraGroups = [ "wheel" "networkmanager" ];
   };
 
   programs.hyprland.enable = true;
@@ -59,6 +59,7 @@ in {
     home.packages = with pkgs; [
       kitty
       rofi
+      networkmanagerapplet
     ];
   };
 }
