@@ -1,1 +1,58 @@
-dotfiles for my nixOS configuration 🎀
+# NixOS Configuration for "nixie"
+
+This repository contains the NixOS configuration for the machine named "nixie", running Hyprland on Wayland.
+
+## User
+- **Username:** `saintbelow`
+- **Initial Password:** `changeme` (Change this immediately after first login with `passwd`)
+
+## Hostname
+- `saintbelow`
+
+## Setup Overview
+- **Disk:** LUKS encrypted BTRFS with subvolumes (as per `setup.sh`).
+- **Window Manager:** Hyprland
+- **Display Manager:** Ly
+- **Shell:** Zsh (configured via home-manager)
+- **Application Launcher:** Rofi (Wayland version)
+- **Configuration Management:** Nix Flakes and Home Manager
+
+## Installation Steps after `setup.sh`
+
+1.  **Generate Initial Config:**
+    ```bash
+    nixos-generate-config --root /mnt
+    ```
+2.  **Prepare Configuration Files:**
+    * Keep the generated `/mnt/etc/nixos/hardware-configuration.nix`.
+    * Place `flake.nix`, `configuration.nix`, and `home.nix` from this repository into `/mnt/etc/nixos/`, replacing the generated `configuration.nix`.
+    * **Crucial:** Verify the LUKS device UUID in `/mnt/etc/nixos/hardware-configuration.nix` (under `boot.initrd.luks.devices."cryptroot".device`) matches your encrypted root partition (e.g., `/dev/nvme0n1p2`).
+
+3.  **Install NixOS:**
+    ```bash
+    nixos-install --flake /mnt/etc/nixos#nixie
+    ```
+    Set a root password when prompted.
+
+4.  **Reboot** into your new system.
+
+5.  **Post-Install:**
+    * Log in as `saintbelow` with password `changeme`.
+    * Open a terminal (e.g., Super + Enter).
+    * Change your user password immediately: `passwd`
+
+## Updating the System
+
+Once installed, you can update your system by:
+1.  Pulling any changes to your configuration (if managed in a git repo).
+2.  Running:
+    ```bash
+    sudo nixos-rebuild switch --flake /etc/nixos#nixie
+    ```
+
+To update home-manager specific configurations for the user `saintbelow`:
+```bash
+home-manager switch --flake /etc/nixos#saintbelow@nixie 
+# Or, if your flake output structure is different, adjust accordingly.
+# A common alias in home.nix might be:
+# hmupdate 
