@@ -33,6 +33,8 @@ in {
   swapDevices = [ { device = "/swapfile"; } ];
 
   home-manager.users.saintbelow = { pkgs, ... }: {
+    home.stateVersion = "25.05";
+
     wayland.windowManager.hyprland = {
       enable = true;
       settings = {
